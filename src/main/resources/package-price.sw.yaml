@@ -1,0 +1,82 @@
+id: packageprice 
+name: Package Price
+start: Country 
+version: "1.0"
+functions:
+    - name: DomesticPrices
+      operation: 'rest:post:/packages/domestic-package-prices'
+      type: custom
+    - name: EUPrices 
+      operation: 'rest:post:/packages/domestic-package-prices'
+      type: custom
+    - name: ExtraCosts
+      operation: 'rest:post:/packages/extra-costs'
+      type: custom
+    - name: sumUpTotalPrice
+      operation: "${ .Package.Cost + .Premiums.Total }"
+      type: expression
+
+states:
+  - name: Country
+    type: switch
+    dataConditions:
+      - condition: .area  == "Domestic"
+        transition: Resolve Domestic Prices
+      - condition: .area  == "EU"
+        transition: Resolve EU Prices
+    defaultCondition:
+      transition: Non supported location
+  - name: Validate Result
+    type: switch
+    dataConditions:
+      - condition: has("Package")
+        transition: Extra Costs
+    defaultCondition:
+      transition: Non supported location
+  - name: Resolve EU Prices 
+    type: operation
+    actions:
+    - functionRef:
+        refName: EUPrices 
+        arguments:
+          Length: ".Length"
+          Height: ".Height"
+          Width: ".Width"
+          Weight: ".Weight"
+    transition: Validate Result 
+  - name: Resolve Domestic Prices 
+    type: operation
+    actions:
+    - functionRef:
+        refName: DomesticPrices
+        arguments:
+          Length: ".Length"
+          Height: ".Height"
+          Width: ".Width"
+          Weight: ".Weight"
+    transition: Validate Result
+  - name: Extra Costs
+    type: operation
+    actions:
+    - functionRef:
+        refName: ExtraCosts
+        arguments:
+          Fragile: ".Fragile"
+          Package Tracking: ".Package Tracking"
+          Insurance: ".Insurance"
+          Package Type: ".Package.Size"
+      actionDataFilter:
+        toStateData: "${ .Premiums }"
+    transition: Calculate Total Cost
+  - name: Calculate Total Cost
+    type: operation
+    actions:
+      - functionRef:
+          refName: sumUpTotalPrice 
+        actionDataFilter:
+          toStateData: "${ .TotalCost }"
+    end: true
+  - name: Non supported location
+    type: inject
+    data: {}
+    end: true 
